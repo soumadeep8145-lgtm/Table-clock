@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>CHRONO OS</title>
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --glow: #00f0ff;
+  --glow2: #9b59ff;
+  --text: #ffffff;
+  --bg1: #0a0e1a;
+  --bg2: #0d1b2a;
+  --glass-bg: rgba(255,255,255,0.07);
+  --glass-border: rgba(255,255,255,0.15);
+  --panel-bg: rgba(10,14,26,0.75);
+  --btn-bg: rgba(255,255,255,0.08);
+  --btn-hover: rgba(255,255,255,0.18);
+  --accent: #00f0ff;
+  --accent2: #9b59ff;
+  --glow-intensity: 1;
+  --font-clock: 'Courier New', monospace;
+}
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg1);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+}
+
+/* ============================================================
+   CANVAS BACKGROUND
+   ============================================================ */
+#bg-canvas {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ============================================================
+   ANIMATED GRADIENT THEMES
+   ============================================================ */
+#theme-layer {
+  position: fixed; inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+.theme-aurora { background: linear-gradient(135deg,#0a0e1a 0%,#0d3b2a 40%,#1a0d2e 80%,#0a1a3b 100%); animation: aurora-shift 10s ease infinite alternate; }
+.theme-cyberpunk { background: linear-gradient(135deg,#0a001a 0%,#0d0026 40%,#1a0005 80%,#001a0d 100%); animation: cyber-shift 8s ease infinite alternate; }
+.theme-amoled { background: #000000; }
+.theme-sunset { background: linear-gradient(135deg,#1a0505 0%,#2d0a1a 40%,#1a100d 80%,#0d051a 100%); animation: sunset-shift 12s ease infinite alternate; }
+.theme-galaxy { background: linear-gradient(135deg,#030318 0%,#0a0520 40%,#050318 80%,#020310 100%); animation: galaxy-shift 15s ease infinite alternate; }
+.theme-liquid { background: linear-gradient(135deg,#0a1a2e 0%,#1a0a2e 40%,#0a2e1a 80%,#2e0a1a 100%); animation: liquid-shift 10s ease infinite alternate; }
+
+@keyframes aurora-shift {
+  0%   { filter: hue-rotate(0deg) brightness(1); }
+  50%  { filter: hue-rotate(40deg) brightness(1.1); }
+  100% { filter: hue-rotate(80deg) brightness(0.9); }
+}
+@keyframes cyber-shift {
+  0%   { filter: hue-rotate(0deg) saturate(1.5); }
+  100% { filter: hue-rotate(60deg) saturate(2); }
+}
+@keyframes sunset-shift {
+  0%   { filter: hue-rotate(-10deg) brightness(1); }
+  100% { filter: hue-rotate(30deg) brightness(1.15); }
+}
+@keyframes galaxy-shift {
+  0%   { filter: hue-rotate(0deg) brightness(0.9); }
+  100% { filter: hue-rotate(180deg) brightness(1.1); }
+}
+@keyframes liquid-shift {
+  0%   { filter: hue-rotate(0deg) saturate(1.2); }
+  50%  { filter: hue-rotate(90deg) saturate(1.8); }
+  100% { filter: hue-rotate(180deg) saturate(1.4); }
+}
+
+/* ============================================================
+   ORBS / AMBIENT BLOBS
+   ============================================================ */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 2;
+  animation: orb-float 12s ease-in-out infinite;
+  opacity: 0.35;
+}
+.orb1 { width: 400px; height: 400px; background: var(--accent); top: -100px; left: -100px; animation-delay: 0s; }
+.orb2 { width: 350px; height: 350px; background: var(--accent2); bottom: -100px; right: -100px; animation-delay: -4s; }
+.orb3 { width: 250px; height: 250px; background: var(--accent); top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: -8s; }
+@keyframes orb-float {
+  0%,100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-30px) scale(1.08); }
+}
+.orb3 { animation: orb-float3 15s ease-in-out infinite; }
+@keyframes orb-float3 {
+  0%,100% { transform: translate(-50%,-50%) scale(1); }
+  50%      { transform: translate(-50%,-55%) scale(1.12); }
+}
+
+/* ============================================================
+   MOUSE GLOW TRACKER
+   ============================================================ */
+#mouse-glow {
+  position: fixed;
+  width: 300px; height: 300px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(circle, rgba(0,240,255,0.12) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s;
+}
+
+/* ============================================================
+   SPLASH SCREEN
+   ============================================================ */
+#splash {
+  position: fixed; inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+#splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.splash-logo {
+  font-size: clamp(2rem, 8vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: #fff;
+  text-shadow: 0 0 20px var(--accent), 0 0 60px var(--accent), 0 0 100px var(--accent);
+  animation: logo-pulse 1.5s ease-in-out infinite;
+}
+.splash-sub {
+  margin-top: 0.5rem;
+  font-size: clamp(0.6rem, 2vw, 1rem);
+  letter-spacing: 0.5em;
+  color: var(--accent);
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+.splash-bar-wrap {
+  margin-top: 3rem;
+  width: clamp(120px, 40vw, 300px);
+  height: 2px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.splash-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+  animation: load-bar 2s ease forwards;
+  box-shadow: 0 0 10px var(--accent);
+}
+@keyframes logo-pulse {
+  0%,100% { text-shadow: 0 0 20px var(--accent), 0 0 60px var(--accent); }
+  50%      { text-shadow: 0 0 30px var(--accent), 0 0 90px var(--accent), 0 0 140px var(--accent2); }
+}
+@keyframes load-bar {
+  0%   { width: 0; }
+  80%  { width: 100%; }
+  100% { width: 100%; }
+}
+
+/* ============================================================
+   MAIN APP
+   ============================================================ */
+#app {
+  position: fixed; inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+}
+#app.visible { opacity: 1; pointer-events: all; }
+
+/* ============================================================
+   CLOCK SECTION
+   ============================================================ */
+#clock-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  padding: 1rem;
+}
+
+/* Greeting */
+#greeting {
+  font-size: clamp(0.7rem, 2.5vw, 1.1rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.85;
+  margin-bottom: 0.4rem;
+  animation: fade-breathe 4s ease-in-out infinite;
+}
+
+/* Clock display */
+#clock-display {
+  font-family: var(--font-clock);
+  font-size: clamp(3.5rem, 18vw, 14rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 0 calc(30px * var(--glow-intensity)) var(--accent),
+    0 0 calc(60px * var(--glow-intensity)) var(--accent),
+    0 0 calc(100px * var(--glow-intensity)) var(--accent2);
+  animation: clock-breathe 3s ease-in-out infinite;
+  transition: font-family 0.4s, text-shadow 0.5s;
+  white-space: nowrap;
+}
+@keyframes clock-breathe {
+  0%,100% { text-shadow: 0 0 calc(20px * var(--glow-intensity)) var(--accent), 0 0 calc(50px * var(--glow-intensity)) var(--accent); }
+  50%      { text-shadow: 0 0 calc(40px * var(--glow-intensity)) var(--accent), 0 0 calc(80px * var(--glow-intensity)) var(--accent), 0 0 calc(120px * var(--glow-intensity)) var(--accent2); }
+}
+
+/* Seconds row */
+#seconds-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.3rem;
+}
+#seconds-display {
+  font-family: var(--font-clock);
+  font-size: clamp(1.2rem, 5vw, 3.5rem);
+  color: var(--accent);
+  opacity: 0.85;
+  text-shadow: 0 0 20px var(--accent);
+  letter-spacing: 0.1em;
+}
+#ampm-display {
+  font-size: clamp(0.8rem, 3vw, 2rem);
+  color: var(--accent2);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-shadow: 0 0 15px var(--accent2);
+}
+
+/* Date row */
+#date-row {
+  margin-top: 0.8rem;
+  text-align: center;
+}
+#weekday {
+  font-size: clamp(0.65rem, 2.2vw, 1rem);
+  letter-spacing: 0.4em;
+  color: var(--accent2);
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+#fulldate {
+  font-size: clamp(0.75rem, 2.5vw, 1.1rem);
+  letter-spacing: 0.25em;
+  color: rgba(255,255,255,0.75);
+  margin-top: 0.2rem;
+}
+
+@keyframes fade-breathe {
+  0%,100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+/* ============================================================
+   CONTROL PANEL
+   ============================================================ */
+#control-panel {
+  position: fixed;
+  bottom: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid var(--glass-border);
+  border-radius: 2rem;
+  padding: 0.5rem 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  max-width: calc(100vw - 1.5rem);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  transition: all 0.3s ease;
+}
+#control-panel.collapsed { padding: 0.4rem; gap: 0; overflow: hidden; max-height: 3.5rem; }
+#control-panel.collapsed .ctrl-btn:not(#toggle-panel) { display: none; }
+
+.ctrl-btn {
+  background: var(--btn-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.8rem;
+  color: #fff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0.45rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+  min-width: 2.8rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.ctrl-btn .icon { font-size: 1rem; line-height: 1; }
+.ctrl-btn .label { font-size: 0.55rem; opacity: 0.7; letter-spacing: 0.05em; text-transform: uppercase; }
+.ctrl-btn:hover, .ctrl-btn:active {
+  background: var(--btn-hover);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 20px rgba(0,240,255,0.2);
+}
+.ctrl-btn.active {
+  background: rgba(0,240,255,0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(0,240,255,0.3);
+}
+
+/* ============================================================
+   SETTINGS PANEL
+   ============================================================ */
+#settings-panel {
+  position: fixed;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: right;
+  z-index: 200;
+  background: var(--panel-bg);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  padding: 1.2rem;
+  min-width: 220px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s;
+  opacity: 0;
+  pointer-events: none;
+}
+#settings-panel.open {
+  transform: translateY(-50%) scaleX(1);
+  opacity: 1;
+  pointer-events: all;
+}
+.settings-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+  font-size: 0.75rem;
+}
+.settings-row label { opacity: 0.8; }
+.slider-wrap { flex: 1; }
+input[type=range] {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 3px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  cursor: pointer;
+}
+.settings-close {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.8rem;
+  color: #fff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+}
+.settings-close:hover { background: rgba(255,255,255,0.15); }
+
+/* ============================================================
+   THEME PICKER
+   ============================================================ */
+#theme-picker {
+  position: fixed;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left;
+  z-index: 200;
+  background: var(--panel-bg);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  padding: 1.2rem 1rem;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s;
+  opacity: 0;
+  pointer-events: none;
+}
+#theme-picker.open {
+  transform: translateY(-50%) scaleX(1);
+  opacity: 1;
+  pointer-events: all;
+}
+.theme-picker-title {
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 0.8rem;
+  text-align: center;
+}
+.theme-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.55rem 1rem;
+  background: var(--btn-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.8rem;
+  color: #fff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.theme-btn:hover, .theme-btn:active { background: var(--btn-hover); transform: translateX(3px); }
+.theme-btn.active { border-color: var(--accent); background: rgba(0,240,255,0.12); }
+.theme-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ============================================================
+   FONT PICKER
+   ============================================================ */
+#font-picker {
+  position: fixed;
+  left: 1rem;
+  bottom: 5rem;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  z-index: 200;
+  background: var(--panel-bg);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  padding: 1rem;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  transition: transform 0.3s ease, opacity 0.3s;
+  opacity: 0;
+  pointer-events: none;
+  min-width: 180px;
+}
+#font-picker.open { transform: scaleY(1); opacity: 1; pointer-events: all; }
+.font-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--btn-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.7rem;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s, transform 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.font-btn:hover { background: var(--btn-hover); }
+.font-btn.active { border-color: var(--accent); }
+
+/* ============================================================
+   LANDSCAPE ADAPTATIONS
+   ============================================================ */
+@media (orientation: landscape) and (max-height: 500px) {
+  #clock-display { font-size: clamp(2.5rem, 14vh, 8rem); }
+  #seconds-display { font-size: clamp(1rem, 4vh, 2.5rem); }
+  #clock-section { padding: 0.3rem; }
+  #greeting { margin-bottom: 0.1rem; font-size: clamp(0.55rem, 2vh, 0.9rem); }
+  #date-row { margin-top: 0.3rem; }
+  #control-panel {
+    bottom: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    gap: 0.25rem;
+    border-radius: 1.5rem;
+  }
+  .ctrl-btn { padding: 0.35rem 0.5rem; min-width: 2.4rem; font-size: 0.6rem; }
+  .ctrl-btn .icon { font-size: 0.85rem; }
+  .ctrl-btn .label { display: none; }
+  #settings-panel { right: 0.5rem; padding: 0.8rem; min-width: 180px; }
+  #theme-picker { left: 0.5rem; padding: 0.8rem 0.7rem; }
+  #font-picker { bottom: 4rem; }
+}
+@media (orientation: landscape) and (min-height: 500px) {
+  #clock-display { font-size: clamp(3rem, 15vh, 11rem); }
+}
+
+/* ============================================================
+   LIGHT MODE
+   ============================================================ */
+body.light-mode {
+  --text: #111;
+  --glass-bg: rgba(255,255,255,0.6);
+  --glass-border: rgba(0,0,0,0.1);
+  --panel-bg: rgba(255,255,255,0.7);
+  --btn-bg: rgba(0,0,0,0.06);
+  --btn-hover: rgba(0,0,0,0.12);
+  background: #e8f0fe;
+}
+body.light-mode #clock-display { color: #111; }
+body.light-mode #theme-layer { opacity: 0.25; }
+body.light-mode .orb { opacity: 0.12; }
+
+/* ============================================================
+   GLASS CARD (decorative)
+   ============================================================ */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  padding: 1.5rem 2rem;
+}
+
+/* ============================================================
+   PARTICLE CANVAS
+   ============================================================ */
+#particle-canvas {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== BACKGROUND LAYERS ==================== -->
+<canvas id="bg-canvas"></canvas>
+<div id="theme-layer" class="theme-aurora"></div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+<div id="mouse-glow"></div>
+<canvas id="particle-canvas"></canvas>
+
+<!-- ==================== SPLASH SCREEN ==================== -->
+<div id="splash">
+  <div class="splash-logo">CHRONO</div>
+  <div class="splash-sub">Operating System v2.0</div>
+  <div class="splash-bar-wrap">
+    <div class="splash-bar"></div>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="app">
+
+  <!-- Clock Section -->
+  <div id="clock-section">
+    <div id="greeting">Good Morning</div>
+    <div id="clock-display">00:00</div>
+    <div id="seconds-row">
+      <div id="seconds-display">:00</div>
+      <div id="ampm-display">AM</div>
+    </div>
+    <div id="date-row">
+      <div id="weekday">Monday</div>
+      <div id="fulldate">January 1, 2025</div>
+    </div>
+  </div>
+
+  <!-- Control Panel -->
+  <div id="control-panel">
+    <button class="ctrl-btn" id="btn-theme" onclick="toggleThemePicker()">
+      <span class="icon">🎨</span><span class="label">Theme</span>
+    </button>
+    <button class="ctrl-btn" id="btn-fullscreen" onclick="toggleFullscreen()">
+      <span class="icon">⛶</span><span class="label">Full</span>
+    </button>
+    <button class="ctrl-btn" id="btn-lightmode" onclick="toggleLightMode()">
+      <span class="icon">☀️</span><span class="label">Light</span>
+    </button>
+    <button class="ctrl-btn" id="btn-timeformat" onclick="toggle12h()">
+      <span class="icon">🕐</span><span class="label">12H</span>
+    </button>
+    <button class="ctrl-btn active" id="btn-bg-anim" onclick="toggleBgAnim()">
+      <span class="icon">🌊</span><span class="label">Anim</span>
+    </button>
+    <button class="ctrl-btn active" id="btn-particles" onclick="toggleParticles()">
+      <span class="icon">✨</span><span class="label">Particles</span>
+    </button>
+    <button class="ctrl-btn" id="btn-settings" onclick="toggleSettings()">
+      <span class="icon">⚙️</span><span class="label">Settings</span>
+    </button>
+    <button class="ctrl-btn" id="btn-font" onclick="toggleFontPicker()">
+      <span class="icon">𝕱</span><span class="label">Font</span>
+    </button>
+    <button class="ctrl-btn" id="toggle-panel" onclick="togglePanel()" title="Collapse panel">
+      <span class="icon">‹›</span><span class="label">Panel</span>
+    </button>
+  </div>
+
+  <!-- Theme Picker -->
+  <div id="theme-picker">
+    <div class="theme-picker-title">Choose Theme</div>
+    <button class="theme-btn active" onclick="setTheme('aurora','#00f0ff','#9b59ff')">
+      <span class="theme-dot" style="background:linear-gradient(135deg,#00f0ff,#9b59ff)"></span> Aurora
+    </button>
+    <button class="theme-btn" onclick="setTheme('cyberpunk','#ff00ff','#00ff9f')">
+      <span class="theme-dot" style="background:linear-gradient(135deg,#ff00ff,#00ff9f)"></span> Cyberpunk
+    </button>
+    <button class="theme-btn" onclick="setTheme('amoled','#00f0ff','#ffffff')">
+      <span class="theme-dot" style="background:#111"></span> AMOLED
+    </button>
+    <button class="theme-btn" onclick="setTheme('sunset','#ff6b35','#f7c59f')">
+      <span class="theme-dot" style="background:linear-gradient(135deg,#ff6b35,#f7c59f)"></span> Sunset
+    </button>
+    <button class="theme-btn" onclick="setTheme('galaxy','#7b2fff','#00bfff')">
+      <span class="theme-dot" style="background:linear-gradient(135deg,#7b2fff,#00bfff)"></span> Galaxy
+    </button>
+    <button class="theme-btn" onclick="setTheme('liquid','#00ff87','#60efff')">
+      <span class="theme-dot" style="background:linear-gradient(135deg,#00ff87,#60efff)"></span> Liquid
+    </button>
+    <button class="settings-close" onclick="toggleThemePicker()">Close</button>
+  </div>
+
+  <!-- Settings Panel -->
+  <div id="settings-panel">
+    <div class="settings-title">Settings</div>
+    <div class="settings-row">
+      <label>Glow</label>
+      <div class="slider-wrap">
+        <input type="range" id="glow-slider" min="0" max="3" step="0.1" value="1" oninput="setGlow(this.value)">
+      </div>
+    </div>
+    <div class="settings-row">
+      <label>Orb Opacity</label>
+      <div class="slider-wrap">
+        <input type="range" id="orb-slider" min="0" max="0.8" step="0.05" value="0.35" oninput="setOrbOpacity(this.value)">
+      </div>
+    </div>
+    <div class="settings-row">
+      <label>Blur</label>
+      <div class="slider-wrap">
+        <input type="range" id="blur-slider" min="5" max="40" step="1" value="20" oninput="setBlur(this.value)">
+      </div>
+    </div>
+    <button class="settings-close" onclick="toggleSettings()">Done</button>
+  </div>
+
+  <!-- Font Picker -->
+  <div id="font-picker">
+    <button class="font-btn active" onclick="setFont('Courier New, monospace','Mono')">Digital Mono</button>
+    <button class="font-btn" onclick="setFont('Georgia, serif','Serif')">Serif</button>
+    <button class="font-btn" onclick="setFont('Arial, sans-serif','Sans')">Sans</button>
+    <button class="font-btn" onclick="setFont('\"Trebuchet MS\", sans-serif','Trebuchet')">Trebuchet</button>
+    <button class="font-btn" onclick="setFont('Impact, fantasy','Impact')">Impact</button>
+    <button class="settings-close" onclick="toggleFontPicker()">Close</button>
+  </div>
+
+</div><!-- #app -->
+
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  is12h: false,
+  bgAnim: true,
+  particles: true,
+  lightMode: false,
+  currentTheme: 'aurora',
+  glowIntensity: 1,
+  themeOpen: false,
+  settingsOpen: false,
+  fontOpen: false,
+  panelCollapsed: false,
+};
+
+/* ============================================================
+   SPLASH → CLOCK TRANSITION
+   ============================================================ */
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('hidden');
+    document.getElementById('app').classList.add('visible');
+    startClock();
+  }, 2400);
+});
+
+/* ============================================================
+   CLOCK ENGINE
+   ============================================================ */
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const GREETINGS = { morning:'Good Morning', afternoon:'Good Afternoon', evening:'Good Evening', night:'Good Night' };
+
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function getGreeting(h) {
+  if (h >= 5 && h < 12)  return GREETINGS.morning;
+  if (h >= 12 && h < 17) return GREETINGS.afternoon;
+  if (h >= 17 && h < 21) return GREETINGS.evening;
+  return GREETINGS.night;
+}
+
+function updateClock() {
+  const now = new Date();
+  let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+  let ampm = '';
+  if (state.is12h) {
+    ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+  }
+  document.getElementById('clock-display').textContent = `${pad(h)}:${pad(m)}`;
+  document.getElementById('seconds-display').textContent = `:${pad(s)}`;
+  document.getElementById('ampm-display').textContent = state.is12h ? ampm : '';
+  document.getElementById('greeting').textContent = getGreeting(now.getHours());
+  document.getElementById('weekday').textContent = DAYS[now.getDay()];
+  document.getElementById('fulldate').textContent = `${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+}
+
+function startClock() {
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
+/* ============================================================
+   CONTROLS
+   ============================================================ */
+function toggle12h() {
+  state.is12h = !state.is12h;
+  const btn = document.getElementById('btn-timeformat');
+  btn.querySelector('.label').textContent = state.is12h ? '24H' : '12H';
+  btn.querySelector('.icon').textContent = state.is12h ? '🕛' : '🕐';
+  btn.classList.toggle('active', state.is12h);
+  updateClock();
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(()=>{});
+    document.getElementById('btn-fullscreen').querySelector('.icon').textContent = '⊡';
+  } else {
+    document.exitFullscreen().catch(()=>{});
+    document.getElementById('btn-fullscreen').querySelector('.icon').textContent = '⛶';
+  }
+}
+
+function toggleLightMode() {
+  state.lightMode = !state.lightMode;
+  document.body.classList.toggle('light-mode', state.lightMode);
+  const btn = document.getElementById('btn-lightmode');
+  btn.querySelector('.icon').textContent = state.lightMode ? '🌙' : '☀️';
+  btn.querySelector('.label').textContent = state.lightMode ? 'Dark' : 'Light';
+  btn.classList.toggle('active', state.lightMode);
+}
+
+function toggleBgAnim() {
+  state.bgAnim = !state.bgAnim;
+  document.getElementById('bg-canvas').style.display = state.bgAnim ? '' : 'none';
+  document.querySelectorAll('.orb').forEach(o => o.style.display = state.bgAnim ? '' : 'none');
+  const btn = document.getElementById('btn-bg-anim');
+  btn.classList.toggle('active', state.bgAnim);
+}
+
+function toggleParticles() {
+  state.particles = !state.particles;
+  document.getElementById('particle-canvas').style.display = state.particles ? '' : 'none';
+  const btn = document.getElementById('btn-particles');
+  btn.classList.toggle('active', state.particles);
+}
+
+function toggleSettings() {
+  state.settingsOpen = !state.settingsOpen;
+  document.getElementById('settings-panel').classList.toggle('open', state.settingsOpen);
+  document.getElementById('btn-settings').classList.toggle('active', state.settingsOpen);
+  if (state.settingsOpen) { closeThemePicker(); closeFontPicker(); }
+}
+
+function toggleThemePicker() {
+  state.themeOpen = !state.themeOpen;
+  document.getElementById('theme-picker').classList.toggle('open', state.themeOpen);
+  document.getElementById('btn-theme').classList.toggle('active', state.themeOpen);
+  if (state.themeOpen) { closeSettings(); closeFontPicker(); }
+}
+
+function toggleFontPicker() {
+  state.fontOpen = !state.fontOpen;
+  document.getElementById('font-picker').classList.toggle('open', state.fontOpen);
+  document.getElementById('btn-font').classList.toggle('active', state.fontOpen);
+  if (state.fontOpen) { closeThemePicker(); closeSettings(); }
+}
+
+function togglePanel() {
+  state.panelCollapsed = !state.panelCollapsed;
+  document.getElementById('control-panel').classList.toggle('collapsed', state.panelCollapsed);
+}
+
+function closeSettings()    { state.settingsOpen = false;  document.getElementById('settings-panel').classList.remove('open');  document.getElementById('btn-settings').classList.remove('active'); }
+function closeThemePicker() { state.themeOpen = false;     document.getElementById('theme-picker').classList.remove('open');    document.getElementById('btn-theme').classList.remove('active'); }
+function closeFontPicker()  { state.fontOpen = false;      document.getElementById('font-picker').classList.remove('open');     document.getElementById('btn-font').classList.remove('active'); }
+
+/* ============================================================
+   THEME ENGINE
+   ============================================================ */
+const THEME_VARS = {
+  aurora:    { accent: '#00f0ff', accent2: '#9b59ff', bg1: '#0a0e1a', bg2: '#0d1b2a' },
+  cyberpunk: { accent: '#ff00ff', accent2: '#00ff9f', bg1: '#0a001a', bg2: '#0d0026' },
+  amoled:    { accent: '#00f0ff', accent2: '#ffffff', bg1: '#000000', bg2: '#000000' },
+  sunset:    { accent: '#ff6b35', accent2: '#f7c59f', bg1: '#1a0505', bg2: '#2d0a1a' },
+  galaxy:    { accent: '#7b2fff', accent2: '#00bfff', bg1: '#030318', bg2: '#0a0520' },
+  liquid:    { accent: '#00ff87', accent2: '#60efff', bg1: '#0a1a2e', bg2: '#1a0a2e' },
+};
+
+function setTheme(name, _a, _a2) {
+  state.currentTheme = name;
+  const vars = THEME_VARS[name];
+  const root = document.documentElement;
+  root.style.setProperty('--accent', vars.accent);
+  root.style.setProperty('--accent2', vars.accent2);
+  root.style.setProperty('--glow', vars.accent);
+  root.style.setProperty('--glow2', vars.accent2);
+  root.style.setProperty('--bg1', vars.bg1);
+  root.style.setProperty('--bg2', vars.bg2);
+  const tl = document.getElementById('theme-layer');
+  tl.className = `theme-${name}`;
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  // Update orb colors
+  document.querySelector('.orb1').style.background = vars.accent;
+  document.querySelector('.orb2').style.background = vars.accent2;
+  document.querySelector('.orb3').style.background = vars.accent;
+  closeThemePicker();
+}
+
+/* ============================================================
+   GLOW / ORB / BLUR SETTINGS
+   ============================================================ */
+function setGlow(val) {
+  state.glowIntensity = parseFloat(val);
+  document.documentElement.style.setProperty('--glow-intensity', val);
+}
+function setOrbOpacity(val) {
+  document.querySelectorAll('.orb').forEach(o => o.style.opacity = val);
+}
+function setBlur(val) {
+  document.getElementById('control-panel').style.backdropFilter = `blur(${val}px) saturate(1.5)`;
+  document.getElementById('settings-panel').style.backdropFilter = `blur(${val}px)`;
+  document.getElementById('theme-picker').style.backdropFilter   = `blur(${val}px)`;
+  document.getElementById('font-picker').style.backdropFilter    = `blur(${val}px)`;
+}
+
+/* ============================================================
+   FONT SWITCHER
+   ============================================================ */
+function setFont(fontFamily, label) {
+  document.documentElement.style.setProperty('--font-clock', fontFamily);
+  document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  closeFontPicker();
+}
+
+/* ============================================================
+   MOUSE / TOUCH GLOW TRACKER
+   ============================================================ */
+const mouseGlow = document.getElementById('mouse-glow');
+document.addEventListener('mousemove', e => {
+  mouseGlow.style.left = e.clientX + 'px';
+  mouseGlow.style.top  = e.clientY + 'px';
+});
+document.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  mouseGlow.style.left = t.clientX + 'px';
+  mouseGlow.style.top  = t.clientY + 'px';
+}, { passive: true });
+
+/* ============================================================
+   PARTICLE SYSTEM
+   ============================================================ */
+const pCanvas = document.getElementById('particle-canvas');
+const pCtx    = pCanvas.getContext('2d');
+let particles = [];
+let animPaused = false;
+
+function resizeParticleCanvas() {
+  pCanvas.width  = window.innerWidth;
+  pCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeParticleCanvas);
+resizeParticleCanvas();
+
+class Particle {
+  constructor() { this.reset(); }
+  reset() {
+    this.x = Math.random() * pCanvas.width;
+    this.y = Math.random() * pCanvas.height;
+    this.size   = Math.random() * 2 + 0.5;
+    this.speedX = (Math.random() - 0.5) * 0.4;
+    this.speedY = (Math.random() - 0.5) * 0.4 - 0.3;
+    this.life   = Math.random();
+    this.maxLife = 0.6 + Math.random() * 0.4;
+    this.color  = Math.random() > 0.5 ? '--accent' : '--accent2';
+  }
+  update() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+    this.life += 0.003;
+    if (this.life > this.maxLife || this.x < 0 || this.x > pCanvas.width || this.y < 0) this.reset();
+  }
+  draw() {
+    const alpha = Math.sin((this.life / this.maxLife) * Math.PI) * 0.7;
+    const color = getComputedStyle(document.documentElement).getPropertyValue(this.color).trim() || '#00f0ff';
+    pCtx.save();
+    pCtx.globalAlpha = alpha;
+    pCtx.beginPath();
+    pCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    pCtx.fillStyle = color;
+    pCtx.shadowColor = color;
+    pCtx.shadowBlur = 6;
+    pCtx.fill();
+    pCtx.restore();
+  }
+}
+
+function initParticles(count = 120) {
+  particles = [];
+  for (let i = 0; i < count; i++) particles.push(new Particle());
+}
+
+function animateParticles() {
+  if (!state.particles) { requestAnimationFrame(animateParticles); return; }
+  pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  requestAnimationFrame(animateParticles);
+}
+
+initParticles();
+animateParticles();
+
+/* ============================================================
+   BG CANVAS — AURORA WAVE EFFECT
+   ============================================================ */
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx    = bgCanvas.getContext('2d');
+let bgT = 0;
+
+function resizeBgCanvas() {
+  bgCanvas.width  = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeBgCanvas);
+resizeBgCanvas();
+
+function drawBg() {
+  if (!state.bgAnim) { requestAnimationFrame(drawBg); return; }
+  bgT += 0.005;
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  const w = bgCanvas.width, h = bgCanvas.height;
+
+  // Scan lines (subtle)
+  for (let y = 0; y < h; y += 4) {
+    bgCtx.fillStyle = `rgba(0,0,0,${0.015 + Math.sin(y * 0.01 + bgT) * 0.005})`;
+    bgCtx.fillRect(0, y, w, 1);
+  }
+
+  // Flowing waves
+  for (let i = 0; i < 3; i++) {
+    const accent = getComputedStyle(document.documentElement).getPropertyValue(i % 2 === 0 ? '--accent' : '--accent2').trim() || '#00f0ff';
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, h * 0.5);
+    for (let x = 0; x <= w; x += 5) {
+      const y2 = h * 0.5 + Math.sin(x * 0.005 + bgT + i * 2) * h * 0.06 * (i + 1) * 0.5;
+      bgCtx.lineTo(x, y2);
+    }
+    bgCtx.strokeStyle = accent + '22';
+    bgCtx.lineWidth = 1.5;
+    bgCtx.stroke();
+  }
+
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+
+/* ============================================================
+   CLOSE POPUPS ON BACKDROP CLICK
+   ============================================================ */
+document.addEventListener('click', e => {
+  const inPanel = e.target.closest('#control-panel');
+  const inTheme = e.target.closest('#theme-picker');
+  const inSettings = e.target.closest('#settings-panel');
+  const inFont = e.target.closest('#font-picker');
+  if (!inTheme && !inPanel)    closeThemePicker();
+  if (!inSettings && !inPanel) closeSettings();
+  if (!inFont && !inPanel)     closeFontPicker();
+});
+
+/* ============================================================
+   PREVENT DOUBLE-TAP ZOOM ON MOBILE
+   ============================================================ */
+let lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTap < 300) e.preventDefault();
+  lastTap = now;
+}, { passive: false });
+
+/* ============================================================
+   HANDLE RESIZE (particles)
+   ============================================================ */
+window.addEventListener('resize', () => {
+  initParticles();
+});
+</script>
+</body>
+</html>
